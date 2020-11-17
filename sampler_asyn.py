@@ -63,13 +63,13 @@ class EnvWorker(mp.Process):
                             observation_tensor = torch.from_numpy(observation).float().unsqueeze(0)
                             action_mean, action_logstd, value = policy(observation_tensor)
                             action, logproba = policy.select_action(action_mean, action_logstd)
-                            action = action.data.cpu().numpy()
-                            logproba = logproba.data.cpu().numpy()
-                            value = value.data.cpu().numpy()
+                            action = action.data.cpu().numpy()[0]
+                            logproba = logproba.data.cpu().numpy()[0]
+                            value = value.data.cpu().numpy()[0][0]
 
                         new_observation, reward, done, _ = self.env.step(action)
                         mask = 0 if done else 1
-                        episode.push(observation, value.squeeze(0), action.squeeze(0), logproba[0], mask, reward)
+                        episode.push(observation, value, action, logproba, mask, reward)
                         if done:
                             with self.lock:
                                 self.queue.put(episode)
@@ -98,7 +98,7 @@ class MemorySampler(object):
 
         self.queue = mp.Queue()
         self.lock = mp.Lock()
-        self.envs = [make_env(self.env_name, self.seed) for _ in range(self.num_workers)]
+        self.envs = [make_env(self.env_name, self.seed+i) for i in range(self.num_workers)]
 
         # Pipe方法返回(conn1, conn2)代表一个管道的两个端，
         # Pipe方法有duplex参数，如果duplex参数为True(默认值)，那么这个管道是全双工模式，也就是说conn1和conn2均可收发。
@@ -141,6 +141,8 @@ class MemorySampler(object):
         return observation_space, action_space
 
     def close(self):
-        Get_Enough_Batch.value = 0
+        Get_Enough_Batch.value = 1
         for remote in self.remotes:
             remote.send(('close', None))
+        for worker in self.workers:
+            worker.join()
