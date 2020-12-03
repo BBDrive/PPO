@@ -44,8 +44,8 @@ class args(object):
 
 def main(args):
     current_dir = os.path.abspath('.')
-    exp_dir = current_dir + '/results2/exp/'
-    model_dir = current_dir + '/results2/model/'
+    exp_dir = current_dir + '/results/exp/'
+    model_dir = current_dir + '/results/model/'
     os.makedirs(exp_dir, exist_ok=True)
     os.makedirs(model_dir, exist_ok=True)
     writer = SummaryWriter(exp_dir)

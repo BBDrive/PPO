@@ -10,6 +10,7 @@ Transition = namedtuple('Transition', ('observation', 'value', 'action', 'logpro
 
 Get_Enough_Batch = mp.Value('i', 0)  # 0还不够 1batch足够
 
+
 def make_env(env_name, seed):
     env = gym.make(env_name)
     env.seed(seed)
