@@ -1,4 +1,2 @@
 # PPO
-synchronous sampling and asynchronous sampling of ppo
-
-asynchronous sampling is faster
+Version of Continuous action and Discrete action

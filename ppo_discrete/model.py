@@ -10,7 +10,6 @@ class ActorCritic(nn.Module):
         self.actor_fc1 = nn.Linear(num_inputs, 64)
         self.actor_fc2 = nn.Linear(64, 64)
         self.actor_fc3 = nn.Linear(64, num_outputs)
-        self.actor_logstd = nn.Parameter(torch.zeros(1, num_outputs))
 
         self.critic_fc1 = nn.Linear(num_inputs, 64)
         self.critic_fc2 = nn.Linear(64, 64)
@@ -36,16 +35,15 @@ class ActorCritic(nn.Module):
         :param states: a Tensor2 represents states
         :return: 3 Tensor2
         """
-        action_mean, action_logstd = self._forward_actor(states)
+        action_list = self._forward_actor(states)
         critic_value = self._forward_critic(states)
-        return action_mean, action_logstd, critic_value
+        return action_list, critic_value
 
     def _forward_actor(self, states):
         x = torch.tanh(self.actor_fc1(states))
         x = torch.tanh(self.actor_fc2(x))
-        action_mean = self.actor_fc3(x)
-        action_logstd = self.actor_logstd.expand_as(action_mean)
-        return action_mean, action_logstd
+        action_list = torch.softmax(self.actor_fc3(x), dim=-1)
+        return action_list
 
     def _forward_critic(self, states):
         x = torch.tanh(self.critic_fc1(states))
@@ -53,25 +51,10 @@ class ActorCritic(nn.Module):
         critic_value = self.critic_fc3(x)
         return critic_value
 
-    def select_action(self, action_mean, action_logstd, return_logproba=True):
-        """
-        given mean and std, sample an action from normal(mean, std)
-        also returns probability of the given chosen
-        """
-        action_std = torch.exp(action_logstd)
-        action = torch.normal(action_mean, action_std)
-        if return_logproba:
-            logproba = self._normal_logproba(action, action_mean, action_logstd, action_std)
+    def select_action(self, action_list):
+        action = torch.distributions.Categorical(action_list).sample()
+        logproba = torch.log(action_list[:, action])
         return action, logproba
-
-    @staticmethod
-    def _normal_logproba(x, mean, logstd, std=None):
-        if std is None:
-            std = torch.exp(logstd)
-
-        std_sq = std.pow(2)
-        logproba = - 0.5 * math.log(2 * math.pi) - logstd - (x - mean).pow(2) / (2 * std_sq)
-        return logproba.sum(1)
 
     def get_logproba(self, states, actions):
         """
@@ -79,6 +62,10 @@ class ActorCritic(nn.Module):
         :param states: Tensor
         :param actions: Tensor
         """
-        action_mean, action_logstd = self._forward_actor(states)
-        logproba = self._normal_logproba(actions, action_mean, action_logstd)
-        return logproba
+        action_list = self._forward_actor(states)
+        prob = action_list.gather(dim=1, index=actions.long())
+        logproba = torch.log(prob).reshape(-1)
+
+        entropy = torch.distributions.Categorical(action_list).entropy()
+
+        return logproba, entropy

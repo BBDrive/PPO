@@ -1,6 +1,5 @@
 import gym
 import torch
-import highway_env
 import numpy as np
 import multiprocessing as mp
 
@@ -103,7 +102,7 @@ class MemorySampler(object):
 
         self.queue = mp.Queue()
         self.lock = mp.Lock()
-        self.envs = [make_env(self.env_name, self.seed+i) for i in range(self.num_workers)]
+        self.envs = [make_env(self.env_name, self.seed + i) for i in range(self.num_workers)]
 
         # Pipe方法返回(conn1, conn2)代表一个管道的两个端，
         # Pipe方法有duplex参数，如果duplex参数为True(默认值)，那么这个管道是全双工模式，也就是说conn1和conn2均可收发。

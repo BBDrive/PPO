@@ -1,5 +1,4 @@
 import os
-import time
 import torch
 import numpy as np
 import torch.optim as opt
@@ -8,19 +7,13 @@ from sampler_asyn import MemorySampler
 from model import ActorCritic
 from tensorboardX import SummaryWriter
 
-asyn = True
-if asyn:
-    from sampler_asyn import MemorySampler
-else:
-    from sampler_syn import MemorySampler
-
 
 class args(object):
-    env_name = 'HalfCheetah-v2'
-    num_workers = 16  # 进程数
+    env_name = 'CartPole-v1'
+    num_workers = 4  # 进程数
     seed = 1234  # 随机种子
     num_episode = 2  # 总回合
-    batch_size = 2048  # 训练的数据量
+    batch_size = 1024  # 训练的数据量
     gamma = 0.995
     lamda = 0.97
     log_num_episode = 1  # 记录间隔
@@ -54,10 +47,11 @@ def main(args):
     np.random.seed(args.seed)
     if args.device == 'cuda':
         torch.cuda.manual_seed(args.seed)
+
     sampler = MemorySampler(args)
     num_inputs, num_actions = sampler.get_space
 
-    network = ActorCritic(num_inputs, num_actions, layer_norm=args.layer_norm).to(args.device)
+    network = ActorCritic(num_inputs, num_actions, layer_norm=args.layer_norm)
     optimizer = opt.Adam(network.parameters(), lr=args.lr)
 
     clip_now = args.clip
@@ -109,7 +103,7 @@ def main(args):
             minibatch_observations = observations[minibatch_ind]
             minibatch_actions = actions[minibatch_ind]
             minibatch_oldlogproba = oldlogproba[minibatch_ind]
-            minibatch_newlogproba = network.get_logproba(minibatch_observations, minibatch_actions)
+            minibatch_newlogproba, entropy = network.get_logproba(minibatch_observations, minibatch_actions)
             minibatch_advantages = advantages[minibatch_ind]
             minibatch_returns = returns[minibatch_ind]
             minibatch_newvalues = network._forward_critic(minibatch_observations).flatten()
@@ -131,7 +125,8 @@ def main(args):
             else:
                 loss_value = torch.mean((minibatch_newvalues - minibatch_returns).pow(2))
 
-            loss_entropy = torch.mean(torch.exp(minibatch_newlogproba) * minibatch_newlogproba)
+            # loss_entropy = torch.mean(torch.exp(minibatch_newlogproba) * minibatch_newlogproba)
+            loss_entropy = -torch.mean(entropy)
 
             total_loss = loss_surr + args.loss_coeff_value * loss_value + args.loss_coeff_entropy * loss_entropy
             optimizer.zero_grad()
@@ -161,10 +156,9 @@ def main(args):
             writer.add_scalar('total_loss', total_loss.cpu().data, i_episode)
             torch.save(network.state_dict(), model_dir + 'network_{}.pth'.format(i_episode))
 
-    if asyn:
-        sampler.close()
-    else:
-        sampler.envs.close()
+
+    sampler.close()
+
 
 if __name__ == '__main__':
     main(args)
