@@ -45,12 +45,16 @@ class Memory(object):
 
 
 class EnvWorker(mp.Process):
-    def __init__(self, remote, env, queue, lock):
+    def __init__(self, remote, env, queue, lock, seed):
         super(EnvWorker, self).__init__()
         self.remote = remote
         self.env = env
         self.queue = queue
         self.lock = lock
+
+        # seed
+        torch.manual_seed(seed)
+        np.random.seed(seed)
 
     def run(self):
         while True:
@@ -106,7 +110,7 @@ class MemorySampler(object):
         # duplex为False，conn1只负责接受消息，conn2只负责发送消息。
         self.remotes, self.work_remotes = zip(*[mp.Pipe() for _ in self.envs])
 
-        self.workers = [EnvWorker(remote, env, self.queue, self.lock)
+        self.workers = [EnvWorker(remote, env, self.queue, self.lock, args.seed)
                         for (remote, env) in zip(self.work_remotes, self.envs)]
         for worker in self.workers:
             # 如果某个子线程的daemon属性为False，主线程结束时会检测该子线程是否结束，如果该子线程还在运行，则主线程会等待它完成后再退出

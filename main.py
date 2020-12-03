@@ -52,6 +52,8 @@ def main(args):
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
+    if args.device == 'cuda':
+        torch.cuda.manual_seed(args.seed)
     sampler = MemorySampler(args)
     num_inputs, num_actions = sampler.get_space
 
