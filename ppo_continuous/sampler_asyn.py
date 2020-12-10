@@ -44,12 +44,13 @@ class Memory(object):
 
 
 class EnvWorker(mp.Process):
-    def __init__(self, remote, env, queue, lock, seed):
+    def __init__(self, env_name, remote, queue, lock, seed):
         super(EnvWorker, self).__init__()
         self.remote = remote
-        self.env = env
         self.queue = queue
         self.lock = lock
+
+        self.env = make_env(env_name, seed)
 
         # seed
         torch.manual_seed(seed)
@@ -102,15 +103,14 @@ class MemorySampler(object):
 
         self.queue = mp.Queue()
         self.lock = mp.Lock()
-        self.envs = [make_env(self.env_name, self.seed + i) for i in range(self.num_workers)]
 
         # Pipe方法返回(conn1, conn2)代表一个管道的两个端，
         # Pipe方法有duplex参数，如果duplex参数为True(默认值)，那么这个管道是全双工模式，也就是说conn1和conn2均可收发。
         # duplex为False，conn1只负责接受消息，conn2只负责发送消息。
-        self.remotes, self.work_remotes = zip(*[mp.Pipe() for _ in self.envs])
+        self.remotes, self.work_remotes = zip(*[mp.Pipe() for _ in range(self.num_workers)])
 
-        self.workers = [EnvWorker(remote, env, self.queue, self.lock, args.seed)
-                        for (remote, env) in zip(self.work_remotes, self.envs)]
+        self.workers = [EnvWorker(self.env_name, remote, self.queue, self.lock, args.seed+i)
+                        for i, remote in enumerate(self.work_remotes)]
         for worker in self.workers:
             # 如果某个子线程的daemon属性为False，主线程结束时会检测该子线程是否结束，如果该子线程还在运行，则主线程会等待它完成后再退出
             # 如果某个子线程的daemon属性为True，主线程运行结束时不对这个子线程进行检查而直接退出，同时所有daemon值为True的子线程将随主线程一起结束，而不论是否运行完成。
